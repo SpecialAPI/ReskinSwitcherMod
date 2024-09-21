@@ -15,6 +15,7 @@ namespace ReskinSwitcherMod
         public const string READMODE_GROUPNAME = "GroupName";
         public const string READMODE_RESPRITENAME = "RespriteName";
         public const string READMODE_RESPRITEFILES = "RespriteFiles";
+        public const string READMODE_ADVANCEDMODE = "AdvancedMode";
 
         public static Dictionary<string, ReskinGroup> groups = [];
 
@@ -30,7 +31,7 @@ namespace ReskinSwitcherMod
                 var fname = Path.GetFileName(f);
                 Debug.Log($"[{Plugin.NAME}] Reading resprite file: {fname}");
 
-                if (!TryReadReskinData(f, out var groupName, out var replacementName, out var replacements))
+                if (!TryReadReskinData(f, out var groupName, out var replacementName, out var replacements, out var advanced))
                     continue;                
 
                 if (groupName.IsNullOrWhiteSpace() || replacementName.IsNullOrWhiteSpace() || replacements.Count <= 0)
@@ -45,7 +46,7 @@ namespace ReskinSwitcherMod
                     continue;
                 }
 
-                var r = ReadReplacementsForReskin(f, replacements);
+                var r = ReadReplacementsForReskin(f, replacements, advanced);
 
                 if (r.Count <= 0)
                     continue;
@@ -69,7 +70,7 @@ namespace ReskinSwitcherMod
             }
         }
 
-        public static List<ReplacementBase> ReadReplacementsForReskin(string f, List<string> replacements)
+        public static List<ReplacementBase> ReadReplacementsForReskin(string f, List<string> replacements, bool advanced)
         {
             var fname = Path.GetFileName(f);
             var fld = Path.GetDirectoryName(f);
@@ -105,7 +106,7 @@ namespace ReskinSwitcherMod
                     continue;
                 }
 
-                var rp = new IndividualReplacement() { collName = c, definitionReplacements = [] };
+                var rp = new IndividualReplacement() { collName = c, definitionReplacements = [], advanced = advanced };
 
                 foreach (var d in Directory.GetFiles(p, "*.png"))
                 {
@@ -116,7 +117,7 @@ namespace ReskinSwitcherMod
                     }
 
                     if (!rp.definitionReplacements.ContainsKey(tx.name))
-                        rp.definitionReplacements[tx.name] = new Tuple<Texture2D, RuntimeAtlasSegment>(tx, null);
+                        rp.definitionReplacements[tx.name] = new() { texture = tx };
 
                     else
                         Debug.LogError($"Error reading individual resprite frame \"{a}/{Path.GetFileName(d)}\" for resprite data file \"{fname}\": frame named \"{tx.name}\" already exists.");
@@ -147,20 +148,21 @@ namespace ReskinSwitcherMod
             return false;
         }
 
-        public static bool TryReadReskinData(string f, out string groupName, out string replacementName, out List<string> replacements)
+        public static bool TryReadReskinData(string f, out string groupName, out string replacementName, out List<string> replacements, out bool advancedMode)
         {
             var fname = Path.GetFileName(f);
-
-            var readingReplacements = false;
-            var readingGroupName = false;
-            var readingReplacementName = false;
 
             groupName = "";
             replacementName = "";
             replacements = [];
+            advancedMode = false;
 
-            foreach (var l_ in File.ReadAllLines(f))
+            var lines = File.ReadAllLines(f);
+
+            for(int i = 0; i < lines.Length; i++)
             {
+                var l_ = lines[i];
+                
                 if (l_.IsNullOrWhiteSpace())
                     continue;
 
@@ -173,19 +175,36 @@ namespace ReskinSwitcherMod
                     if (readmode.IsNullOrWhiteSpace())
                         continue;
 
-                    readingGroupName = false;
-                    readingReplacementName = false;
-                    readingReplacements = false;
+                    var res = TryReadDataProperty(lines, ref i, out var prop);
 
                     if (readmode == READMODE_GROUPNAME.ToLowerInvariant())
-                        readingGroupName = true;
-
+                    {
+                        if (res)
+                            groupName = prop.LastOrDefault();
+                    }
                     else if (readmode == READMODE_RESPRITENAME.ToLowerInvariant())
-                        readingReplacementName = true;
-
+                    {
+                        if(res)
+                            replacementName = prop.LastOrDefault();
+                    }
                     else if (readmode == READMODE_RESPRITEFILES.ToLowerInvariant())
-                        readingReplacements = true;
+                    {
+                        if (res)
+                            replacements.AddRange(prop);
+                    }
+                    else if(readmode == READMODE_ADVANCEDMODE.ToLowerInvariant())
+                    {
+                        if (res)
+                        {
+                            if(bool.TryParse(prop.Last().ToLowerInvariant(), out var adv))
+                                advancedMode = adv;
 
+                            else
+                            {
+                                Debug.LogError($"Error reading resprite data file \"{fname}\": unexpected value for {READMODE_ADVANCEDMODE}. Value can only be \"true\" or \"false\"");
+                            }
+                        }
+                    }
                     else
                     {
                         Debug.LogError($"Error reading resprite data file \"{fname}\": read mode \"{readmode}\" doesn't exist.");
@@ -193,27 +212,42 @@ namespace ReskinSwitcherMod
                         return false;
                     }
                 }
+
                 else
                 {
-                    if (readingGroupName)
-                        groupName = l;
-
-                    else if (readingReplacementName)
-                        replacementName = l;
-
-                    else if (readingReplacements)
-                        replacements.Add(l);
-
-                    else
-                    {
-                        Debug.LogError($"Error reading resprite data file \"{fname}\": unexpected line \"{l_}\" before read mode definition.");
-
-                        return false;
-                    }
+                    Debug.LogError($"Error reading resprite data file \"{fname}\": unexpected line \"{l_}\".");
+                    return false;
                 }
             }
 
             return true;
+        }
+
+        public static bool TryReadDataProperty(string[] lines, ref int index, out List<string> property)
+        {
+            property = [];
+
+            for(index++; index < lines.Length; index++)
+            {
+                var l_ = lines[index];
+
+                if (l_.IsNullOrWhiteSpace())
+                    continue;
+
+                var l = l_.Trim();
+
+                if(l.StartsWith("#") && l.Length > 1)
+                {
+                    // Move index back so the data reader can process the next read mode
+                    index--;
+                    break;
+                }
+
+                property.Add(l);
+            }
+
+            // Reached end of file
+            return property.Count > 0;
         }
     }
 }
