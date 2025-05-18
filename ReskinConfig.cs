@@ -47,6 +47,23 @@ namespace ReskinSwitcherMod
                 replacement.ApplyReplacements();
 
             group.currentResprite = value;
+
+            var sprites = UnityEngine.Object.FindObjectsOfType<tk2dBaseSprite>();
+            foreach (var sprite in sprites)
+            {
+                if (sprite == null)
+                    continue;
+
+                sprite.InitInstance();
+
+                if (sprite._spriteId < 0 || sprite._spriteId >= sprite.collectionInst.spriteDefinitions.Length || sprite.GetCurrentVertexCount() != 4)
+                    sprite.UpdateGeometry();
+                else
+                    sprite.UpdateVertices();
+
+                sprite.UpdateMaterial();
+                sprite.UpdateCollider();
+            }
         }
     }
 }
