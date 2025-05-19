@@ -23,55 +23,47 @@ namespace ReskinSwitcherMod
 
         public override void ApplyResprites(tk2dSpriteCollectionData coll)
         {
-            if (coll.materials != null && coll.materials.Length > 0)
+            if (coll.materials == null || coll.materials.Length == 0)
+                return;
+
+            var material = coll.materials[0];
+            if (!material)
+                return;
+
+            var mainTexture = material.mainTexture;
+            if (!mainTexture)
+                return;
+
+            var atlasName = mainTexture.name;
+            if (string.IsNullOrEmpty(atlasName))
+                return;
+
+            if (atlasName[0] == '~')
+                return;
+
+            spritesheet.name = '~' + atlasName;
+
+            for (int i = 0; i < coll.materials.Length; i++)
             {
-                var material = coll.materials[0];
+                if (coll.materials[i]?.mainTexture == null)
+                    continue;
 
-                if (material)
+                previousDefinitions[coll.materials[i]] = coll.materials[i].mainTexture;
+                coll.materials[i].mainTexture = spritesheet;
+            }
+
+            coll.inst.materialInsts = null;
+            coll.inst.Init();
+
+            if (coll.inst != coll && coll.inst?.materials != null)
+            {
+                for (int i = 0; i < coll.inst.materials.Length; i++)
                 {
-                    var mainTexture = material.mainTexture;
+                    if (coll.inst.materials[i]?.mainTexture == null)
+                        continue;
 
-                    if (mainTexture)
-                    {
-                        var atlasName = mainTexture.name;
-
-                        if (!string.IsNullOrEmpty(atlasName))
-                        {
-                            if (atlasName[0] != '~')
-                            {
-                                spritesheet.name = '~' + atlasName;
-
-                                for (int i = 0; i < coll.materials.Length; i++)
-                                {
-                                    if (coll.materials[i]?.mainTexture == null)
-                                        continue;
-
-                                    previousDefinitions[coll.materials[i]] = coll.materials[i].mainTexture;
-                                    coll.materials[i].mainTexture = spritesheet;
-                                }
-
-                                coll.inst.materialInsts = null;
-                                coll.inst.Init();
-
-                                var instIsNew = coll.inst != coll;
-
-                                if (instIsNew)
-                                {
-                                    if (coll.inst?.materials != null)
-                                    {
-                                        for (int i = 0; i < coll.inst.materials.Length; i++)
-                                        {
-                                            if (coll.inst.materials[i]?.mainTexture == null)
-                                                continue;
-
-                                            previousDefinitions[coll.inst.materials[i]] = coll.inst.materials[i].mainTexture;
-                                            coll.inst.materials[i].mainTexture = spritesheet;
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
+                    previousDefinitions[coll.inst.materials[i]] = coll.inst.materials[i].mainTexture;
+                    coll.inst.materials[i].mainTexture = spritesheet;
                 }
             }
         }
@@ -103,58 +95,53 @@ namespace ReskinSwitcherMod
             {
                 var def = coll.GetSpriteDefinition(kvp.Key);
 
-                if (def != null)
+                if (def == null)
+                    continue;
+
+                var inf = kvp.Value;
+
+                var replacement = inf.texture;
+                var segment = inf.pack ??= ETGMod.Assets.Packer.Pack(replacement);
+
+                if (segment == null)
+                    continue;
+
+                previousDefinitions[def] = new DefinitionInfoCache()
                 {
-                    var inf = kvp.Value;
+                    extractRegion = def.extractRegion,
+                    flipped = def.flipped,
+                    materialInst = def.materialInst,
+                    texelSize = def.texelSize,
+                    uvs = def.uvs,
 
-                    var replacement = inf.texture;
-                    var segment = inf.pack ??= ETGMod.Assets.Packer.Pack(replacement);
+                    position0 = def.position0,
+                    position1 = def.position1,
+                    position2 = def.position2,
+                    position3 = def.position3
+                };
 
-                    if (segment == null)
-                        continue;
+                def.flipped = tk2dSpriteDefinition.FlipMode.None;
+                def.materialInst = new Material(def.material);
+                def.texelSize = replacement.texelSize;
+                def.extractRegion = true;
 
-                    previousDefinitions[def] = new DefinitionInfoCache()
-                    {
-                        extractRegion = def.extractRegion,
-                        flipped = def.flipped,
-                        materialInst = def.materialInst,
-                        texelSize = def.texelSize,
-                        uvs = def.uvs,
+                def.materialInst.mainTexture = segment.texture;
+                def.uvs = segment.uvs;
 
-                        position0 = def.position0,
-                        position1 = def.position1,
-                        position2 = def.position2,
-                        position3 = def.position3,
+                if (advanced)
+                {
+                    var origDimensions = def.position3 - def.position0;
+                    var thisDimensions = new Vector3(replacement.width, replacement.height) / 16f;
 
-                        boundsCenter = def.boundsDataCenter,
-                        boundsExtents = def.boundsDataExtents,
-                        untrimmedBoundsCenter = def.untrimmedBoundsDataCenter,
-                        untrimmedBoundsExtents = def.untrimmedBoundsDataExtents
-                    };
+                    var diff = thisDimensions - origDimensions;
 
-                    def.flipped = tk2dSpriteDefinition.FlipMode.None;
-                    def.materialInst = new Material(def.material);
-                    def.texelSize = replacement.texelSize;
-                    def.extractRegion = true;
+                    var wDiffVector = new Vector3(diff.x / 2f, 0);
+                    var hDiffVector = new Vector3(0, diff.y / 2f);
 
-                    def.materialInst.mainTexture = segment.texture;
-                    def.uvs = segment.uvs;
-
-                    if(advanced)
-                    {
-                        var origDimensions = def.position3 - def.position0;
-                        var thisDimensions = new Vector3(replacement.width, replacement.height) / 16f;
-
-                        var diff = thisDimensions - origDimensions;
-
-                        var wDiffVector = new Vector3(diff.x / 2f, 0);
-                        var hDiffVector = new Vector3(0, diff.y / 2f);
-
-                        def.position0 += -wDiffVector - hDiffVector; // Expand the lower left corner to the left and down.
-                        def.position1 += wDiffVector - hDiffVector; // Expand the lower right corner to the right and down.
-                        def.position2 += -wDiffVector + hDiffVector; // Expand the upper left corner to the left and up.
-                        def.position3 += wDiffVector + hDiffVector; // Expand the upper right corner to the right and up.
-                    }
+                    def.position0 += -wDiffVector - hDiffVector; // Expand the lower left corner to the left and down.
+                    def.position1 += wDiffVector - hDiffVector; // Expand the lower right corner to the right and down.
+                    def.position2 += -wDiffVector + hDiffVector; // Expand the upper left corner to the left and up.
+                    def.position3 += wDiffVector + hDiffVector; // Expand the upper right corner to the right and up.
                 }
             }
         }
@@ -163,27 +150,22 @@ namespace ReskinSwitcherMod
         {
             foreach (var kvp in previousDefinitions)
             {
-                if (kvp.Key != null)
-                {
-                    var def = kvp.Key;
-                    var cache = kvp.Value;
+                if (kvp.Key == null || kvp.Value == null)
+                    continue;
 
-                    def.flipped = cache.flipped;
-                    def.materialInst = cache.materialInst;
-                    def.texelSize = cache.texelSize;
-                    def.extractRegion = cache.extractRegion;
-                    def.uvs = cache.uvs;
+                var def = kvp.Key;
+                var cache = kvp.Value;
 
-                    def.position0 = cache.position0;
-                    def.position1 = cache.position1;
-                    def.position2 = cache.position2;
-                    def.position3 = cache.position3;
+                def.flipped = cache.flipped;
+                def.materialInst = cache.materialInst;
+                def.texelSize = cache.texelSize;
+                def.extractRegion = cache.extractRegion;
+                def.uvs = cache.uvs;
 
-                    def.boundsDataCenter = cache.boundsCenter;
-                    def.boundsDataExtents = cache.boundsExtents;
-                    def.untrimmedBoundsDataCenter = cache.untrimmedBoundsCenter;
-                    def.untrimmedBoundsDataExtents = cache.untrimmedBoundsExtents;
-                }
+                def.position0 = cache.position0;
+                def.position1 = cache.position1;
+                def.position2 = cache.position2;
+                def.position3 = cache.position3;
             }
 
             previousDefinitions.Clear();
@@ -201,23 +183,12 @@ namespace ReskinSwitcherMod
             public Vector3 position1;
             public Vector3 position2;
             public Vector3 position3;
-
-            public Vector3 boundsCenter;
-            public Vector3 boundsExtents;
-            public Vector3 untrimmedBoundsCenter;
-            public Vector3 untrimmedBoundsExtents;
         }
 
         public class DefinitionReplacementInfo
         {
             public Texture2D texture;
             public RuntimeAtlasSegment pack;
-
-            public bool hasSavedTrimData;
-            public int? minX;
-            public int? maxX;
-            public int? minY;
-            public int? maxY;
         }
     }
 }
