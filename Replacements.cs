@@ -154,67 +154,6 @@ namespace ReskinSwitcherMod
                         def.position1 += wDiffVector - hDiffVector; // Expand the lower right corner to the right and down.
                         def.position2 += -wDiffVector + hDiffVector; // Expand the upper left corner to the left and up.
                         def.position3 += wDiffVector + hDiffVector; // Expand the upper right corner to the right and up.
-
-                        var c = replacement.GetPixels();
-
-                        int? minX = null;
-                        int? maxX = null;
-                        int? minY = null;
-                        int? maxY = null;
-
-                        if (inf.hasSavedTrimData)
-                        {
-                            minX = inf.minX;
-                            maxX = inf.maxX;
-                            minY = inf.minY;
-                            maxY = inf.maxY;
-                        }
-                        else if (replacement.IsReadable())
-                        {
-                            for (int i = 0; i < c.Length; i++)
-                            {
-                                var color = c[i];
-
-                                if (color.a <= 0f)
-                                    continue;
-
-                                var x = i % replacement.width;
-                                var y = i / replacement.width;
-
-                                minY ??= y;
-                                maxY = y;
-
-                                minX = Mathf.Min(minX ?? int.MaxValue, x);
-                                maxX = Mathf.Max(maxX ?? int.MinValue, x);
-                            }
-                        }
-
-                        if (!inf.hasSavedTrimData)
-                        {
-                            inf.minX = minX;
-                            inf.maxX = maxX;
-                            inf.minY = minY;
-                            inf.maxY = maxY;
-
-                            inf.hasSavedTrimData = true;
-                        }
-
-                        if (minX != null && maxX != null && minY != null && maxY != null)
-                        {
-                            var trimmedWidth = maxX.GetValueOrDefault() - minX.GetValueOrDefault() + 1;
-                            var trimmedHeight = maxY.GetValueOrDefault() - minY.GetValueOrDefault() + 1;
-
-                            var trimmedDimensions = new Vector3(trimmedWidth, trimmedHeight) / 16f;
-                            var center = new Vector3((maxX.GetValueOrDefault() + minX.GetValueOrDefault() + 1) / 2f, (maxY.GetValueOrDefault() + minY.GetValueOrDefault() + 1) / 2f) / 16f;
-
-                            def.boundsDataCenter = def.position0 + center;
-                            def.boundsDataExtents = trimmedDimensions;
-                        }
-
-                        else
-                            def.boundsDataExtents += diff;
-
-                        def.untrimmedBoundsDataExtents += diff;
                     }
                 }
             }
