@@ -47,7 +47,11 @@ namespace ReskinSwitcherMod
                 replacement.ApplyReplacements();
 
             group.currentResprite = value;
+            UpdateExistingSprites();
+        }
 
+        public static void UpdateExistingSprites()
+        {
             var sprites = UnityEngine.Object.FindObjectsOfType<tk2dBaseSprite>();
             foreach (var sprite in sprites)
             {
@@ -55,6 +59,9 @@ namespace ReskinSwitcherMod
                     continue;
 
                 sprite.InitInstance();
+                
+                if(sprite.collectionInst == null || sprite.collectionInst.spriteDefinitions == null)
+                    continue;
 
                 if (sprite._spriteId < 0 || sprite._spriteId >= sprite.collectionInst.spriteDefinitions.Length || sprite.GetCurrentVertexCount() != 4)
                     sprite.UpdateGeometry();
