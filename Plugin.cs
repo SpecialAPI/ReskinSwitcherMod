@@ -16,7 +16,7 @@ namespace ReskinSwitcherMod
     {
         public const string GUID = "spapi.etg.reskinswitcher";
         public const string NAME = "Reskin Switcher";
-        public const string VERSION = "1.2.2";
+        public const string VERSION = "1.2.3";
 
         public void Awake()
         {
