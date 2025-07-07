@@ -63,7 +63,10 @@ namespace ReskinSwitcherMod
                 if(sprite.collectionInst == null || sprite.collectionInst.spriteDefinitions == null)
                     continue;
 
-                if (sprite._spriteId < 0 || sprite._spriteId >= sprite.collectionInst.spriteDefinitions.Length || sprite.GetCurrentVertexCount() != 4)
+                if (sprite._spriteId < 0 || sprite._spriteId >= sprite.collectionInst.spriteDefinitions.Length)
+                    continue;
+
+                if (sprite.GetCurrentVertexCount() != 4)
                     sprite.UpdateGeometry();
                 else
                     sprite.UpdateVertices();
